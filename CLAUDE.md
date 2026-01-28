@@ -40,6 +40,7 @@ This is a web application template for creating internal tools and dashboards. T
 1. Create file in `/frontend/src/pages/` based on `/templates/NewPage.tsx`
 2. Add route in `/frontend/src/routes.tsx`
 3. Add navigation in `/frontend/src/components/Sidebar.tsx`
+4. Add E2E test in `/e2e/tests/` based on `/templates/new-page.spec.ts`
 
 ### Add New API Endpoint
 
@@ -47,6 +48,7 @@ This is a web application template for creating internal tools and dashboards. T
 2. Import and register in `/backend/main.py`
 3. Add TypeScript types in `/frontend/src/types/api.ts`
 4. Create hook in `/frontend/src/hooks/` based on `/templates/useNewData.ts`
+5. Add tests in `/backend/tests/` based on `/templates/test_new_route.py`
 
 ### Add New Component
 
@@ -80,6 +82,33 @@ cd backend && uvicorn main:app --reload
 
 # Start frontend (separate terminal)
 cd frontend && npm run dev
+```
+
+## Running Tests
+
+See `/docs/TESTING.md` for full details.
+
+```bash
+# Backend tests (pytest)
+cd backend && pip install -r requirements-test.txt && python -m pytest -v
+
+# E2E tests (Playwright - auto-starts servers)
+npm install && npx playwright install chromium
+npx playwright test
+```
+
+## Claude Code Best Practice: Use Subagent for Tests
+
+**Always delegate test execution to a Task subagent.** Test output is verbose; subagents process it without consuming main session context.
+
+```
+# Backend tests
+Use Task tool (Bash subagent): "cd backend && python -m pytest -v"
+-> Return only summary: pass/fail counts + failure details
+
+# E2E tests
+Use Task tool (Bash subagent): "npx playwright test"
+-> Return only summary: pass/fail counts + failure details
 ```
 
 ## When in Doubt
