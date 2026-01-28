@@ -1,0 +1,89 @@
+# Instructions for Claude
+
+This is a web application template for creating internal tools and dashboards. The project is designed for AI-assisted development.
+
+## Project Structure
+
+```
+/docs           - Documentation (ALWAYS read before changes)
+/templates      - Templates for new files
+/frontend       - React app with Vite, Tremor, TailwindCSS
+/backend        - FastAPI Python backend
+```
+
+## Before Making Changes
+
+1. **Read relevant documentation** in `/docs/`
+2. **Check if similar functionality exists** - search existing code
+3. **Follow existing patterns** - see `/docs/PATTERNS.md`
+4. **Use templates** from `/templates/` as starting point
+
+## Technology Stack (do not change)
+
+### Frontend
+- **React 18** with TypeScript
+- **Vite** as build tool
+- **Tremor** for dashboard components (charts, metrics, tables)
+- **TailwindCSS** for styling (no inline styles)
+- **TanStack Query** for data fetching and caching
+- **React Router** for navigation
+
+### Backend
+- **FastAPI** with Python 3.11+
+- **Pydantic** for validation
+- **SQLAlchemy** for database (if needed)
+
+## Common Tasks
+
+### Add New Page
+
+1. Create file in `/frontend/src/pages/` based on `/templates/NewPage.tsx`
+2. Add route in `/frontend/src/routes.tsx`
+3. Add navigation in `/frontend/src/components/Sidebar.tsx`
+
+### Add New API Endpoint
+
+1. Create file in `/backend/routes/` based on `/templates/new_route.py`
+2. Import and register in `/backend/main.py`
+3. Add TypeScript types in `/frontend/src/types/api.ts`
+4. Create hook in `/frontend/src/hooks/` based on `/templates/useNewData.ts`
+
+### Add New Component
+
+1. Create file in `/frontend/src/components/` based on `/templates/NewComponent.tsx`
+2. Export from `/frontend/src/components/index.ts`
+
+### Add New Data Model
+
+1. Create Pydantic model in `/backend/models/`
+2. Add corresponding TypeScript type in `/frontend/src/types/`
+
+## Important Conventions
+
+- **File names**: PascalCase for React components, snake_case for Python
+- **Components**: Functional components with TypeScript props interface
+- **Styling**: Only Tailwind classes, no inline styles or CSS files
+- **API calls**: Always via TanStack Query hooks, never direct fetch
+- **Error handling**: Use ErrorBoundary in frontend, HTTPException in backend
+
+## Design System
+
+- **Colors**: Use Tremor's color palette (blue, emerald, amber, rose)
+- **Spacing**: Use Tailwind's spacing scale (p-4, gap-6, etc.)
+- **Typography**: Use Tremor's Text and Title components
+
+## Test Changes
+
+```bash
+# Start backend
+cd backend && uvicorn main:app --reload
+
+# Start frontend (separate terminal)
+cd frontend && npm run dev
+```
+
+## When in Doubt
+
+1. Look at existing code for similar functionality
+2. Follow the established patterns
+3. Ask the user if something is unclear
