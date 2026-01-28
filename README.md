@@ -47,28 +47,45 @@ docker-compose up --build
 
 ```
 WebAppTemplate/
-├── frontend/           # React frontend
+├── frontend/               # React frontend
 │   ├── src/
-│   │   ├── components/ # Reusable UI components
-│   │   ├── pages/      # Page components
-│   │   ├── hooks/      # Data fetching hooks
-│   │   ├── types/      # TypeScript types
-│   │   └── lib/        # Utilities
+│   │   ├── components/     # Reusable UI components
+│   │   ├── pages/          # Page components
+│   │   ├── hooks/          # Data fetching hooks
+│   │   ├── types/          # TypeScript types
+│   │   └── lib/            # Utilities
 │   ├── package.json
 │   └── Dockerfile
-├── backend/            # FastAPI backend
-│   ├── routes/         # API endpoints
-│   ├── models/         # Pydantic models
-│   ├── services/       # Business logic
+├── backend/                # FastAPI backend
+│   ├── routes/             # API endpoints
+│   ├── models/             # Pydantic models
+│   ├── services/           # Business logic
 │   ├── main.py
 │   └── Dockerfile
-├── docs/               # Documentation
+├── infrastructure/         # Azure infrastructure as code
+│   └── templates/
+│       └── webapp.bicep
+├── .github/
+│   └── workflow-templates/ # CI/CD workflow templates
+│       ├── azure-webapp-python.yml
+│       └── azure-webapp-node.yml
+├── .claude/
+│   └── skills/
+│       └── deploy-prototype.md
+├── scripts/                # Deployment automation
+│   ├── deploy.ps1
+│   └── deploy.sh
+├── docs/                   # Documentation
 │   ├── ARCHITECTURE.md
+│   ├── CONVENTIONS.md
 │   ├── PATTERNS.md
-│   └── CONVENTIONS.md
-├── templates/          # Code templates for new files
+│   ├── TESTING.md
+│   ├── DEPLOYMENT.md
+│   └── dockerImplementation.md
+├── templates/              # Code templates for new files
+├── e2e/                    # Playwright E2E tests
 ├── docker-compose.yml
-└── CLAUDE.md           # AI assistant instructions
+└── CLAUDE.md               # AI assistant instructions
 ```
 
 ## Using as a Template
@@ -94,7 +111,23 @@ This project is structured so Claude can handle all development. Before asking C
 
 ## Deployment
 
-This template is configured for Azure App Service deployment. See the deployment-templates repo for GitHub Actions workflows.
+This template includes complete Azure deployment configuration:
+
+| Directory | Contents |
+|-----------|----------|
+| `infrastructure/templates/` | Azure Bicep templates |
+| `.github/workflow-templates/` | GitHub Actions CI/CD workflows |
+| `scripts/` | PowerShell and Bash deployment scripts |
+| `.claude/skills/` | Claude Code deployment skill |
+
+### Deploy to Azure
+
+1. Create a project with `/create-new-web-app`
+2. Develop your application
+3. Run `/deploy-prototype` to provision Azure resources and enable CI/CD
+4. Push to `main` for automatic deployments
+
+For manual deployment, run `scripts/deploy.ps1` (Windows) or `scripts/deploy.sh` (Linux/macOS).
 
 ## Technologies
 

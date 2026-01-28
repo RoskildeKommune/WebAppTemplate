@@ -196,3 +196,28 @@ jobs:
           name: playwright-report
           path: playwright-report/
 ```
+
+## Infrastructure Validation
+
+### Bicep Template Validation
+
+```bash
+# Validate syntax
+az bicep build --file infrastructure/templates/webapp.bicep
+
+# Preview deployment changes (requires Azure access)
+az deployment group what-if \
+  --resource-group internal_web_applications \
+  --template-file infrastructure/templates/webapp.bicep \
+  --parameters appName=test-validation linuxFxVersion="PYTHON|3.11"
+```
+
+### Deployment Script Validation
+
+```bash
+# PowerShell - verify syntax
+pwsh -c "& { . .\scripts\deploy.ps1 -? }"
+
+# Bash - verify syntax
+bash -n scripts/deploy.sh
+```

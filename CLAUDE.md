@@ -5,10 +5,14 @@ This is a web application template for creating internal tools and dashboards. T
 ## Project Structure
 
 ```
-/docs           - Documentation (ALWAYS read before changes)
-/templates      - Templates for new files
-/frontend       - React app with Vite, Tremor, TailwindCSS
-/backend        - FastAPI Python backend
+/docs               - Documentation (ALWAYS read before changes)
+/templates          - Templates for new files
+/frontend           - React app with Vite, Tremor, TailwindCSS
+/backend            - FastAPI Python backend
+/infrastructure     - Azure Bicep templates
+/scripts            - Deployment automation scripts
+/.github            - CI/CD workflow templates
+/.claude/skills     - Claude Code skills (deploy-prototype)
 ```
 
 ## Before Making Changes
@@ -83,6 +87,32 @@ cd backend && uvicorn main:app --reload
 # Start frontend (separate terminal)
 cd frontend && npm run dev
 ```
+
+## Deployment
+
+This project includes Azure deployment configuration. Use the `/deploy-prototype` skill to deploy.
+
+### Deployment Files (do not delete)
+- `/infrastructure/templates/` - Azure Bicep templates (infrastructure as code)
+- `/.github/workflow-templates/` - CI/CD workflow templates
+- `/scripts/` - Deployment automation (deploy.ps1 for Windows, deploy.sh for Linux/macOS)
+- `/.claude/skills/deploy-prototype.md` - Deployment skill
+
+### Deploy to Azure
+1. Run `/deploy-prototype` in the project directory
+2. Provide app name and runtime when prompted
+3. The skill runs the deploy script, which handles everything automatically
+
+### After Deployment
+- Every push to `main` triggers automatic deployment via GitHub Actions
+- Workflow file: `.github/workflows/azure-deploy.yml` (created during deployment)
+- Monitor deployments: `gh run list`
+- View logs: `az webapp log tail --name APP_NAME --resource-group internal_web_applications`
+
+### Important
+- All apps must listen on port 8000 (Azure App Service requirement)
+- Shell scripts must have LF line endings (`.gitattributes` enforces this)
+- Do not manually edit `.github/workflows/azure-deploy.yml` - regenerate with `/deploy-prototype`
 
 ## Running Tests
 

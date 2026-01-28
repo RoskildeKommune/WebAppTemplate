@@ -95,3 +95,29 @@ Vi bruger **Tremor** som primært komponentbibliotek fordi:
 - HTTPException med meningsfulde fejlkoder
 - Pydantic validation errors returneres automatisk
 - Logging af alle fejl
+
+## Deployment Architecture
+
+```
+Developer --> Git Push --> GitHub Actions --> Azure App Service
+                              |
+                    .github/workflows/azure-deploy.yml
+                    (created by /deploy-prototype)
+```
+
+### Infrastructure as Code
+- Azure resources defined in `infrastructure/templates/webapp.bicep`
+- Deployed to resource group `internal_web_applications`
+- Shared App Service Plan: `ASP-internal-web-applications`
+
+### CI/CD Pipeline
+1. Push to `main` triggers GitHub Actions workflow
+2. Build step: installs dependencies, builds app
+3. Deploy step: publishes to Azure Web App via publish profile
+4. Azure Web App restarts with new code
+
+### Configuration
+- All apps listen on port 8000 (Azure requirement)
+- HTTPS enforced, TLS 1.2+, FTP disabled
+- Oryx build system handles dependency installation
+- Apps tagged: `environment: internal-prototype`

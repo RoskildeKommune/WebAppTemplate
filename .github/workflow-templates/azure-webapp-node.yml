@@ -1,0 +1,74 @@
+# Azure Web App Deployment Workflow for Node.js Applications
+# This workflow builds and deploys a Node.js web app to Azure App Service
+#
+# Required secrets:
+#   AZURE_WEBAPP_PUBLISH_PROFILE - The publish profile from Azure Portal
+#
+# Usage:
+#   1. Copy this file to your repo's .github/workflows/ directory
+#   2. Update the APP_NAME environment variable
+#   3. Add the AZURE_WEBAPP_PUBLISH_PROFILE secret to your repo
+
+name: Build and Deploy to Azure
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  APP_NAME: '{{APP_NAME}}'  # Replace with your Azure Web App name
+  NODE_VERSION: '20.x'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build --if-present
+
+      - name: Upload artifact for deployment
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-app
+          path: |
+            .
+            !.git/
+            !.github/
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: 'Production'
+      url: ${{ steps.deploy.outputs.webapp-url }}
+
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: node-app
+
+      - name: Deploy to Azure Web App
+        id: deploy
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.APP_NAME }}
+          slot-name: 'Production'
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
