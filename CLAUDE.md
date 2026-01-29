@@ -96,7 +96,7 @@ This project includes Azure deployment configuration. Use the `/deploy-prototype
 - `/infrastructure/templates/` - Azure Bicep templates (infrastructure as code)
 - `/.github/workflow-templates/` - CI/CD workflow templates
 - `/scripts/` - Deployment automation (deploy.ps1 for Windows, deploy.sh for Linux/macOS)
-- `/.claude/skills/deploy-prototype.md` - Deployment skill
+- `/.claude/skills/deploy-prototype/SKILL.md` - Deployment skill
 
 ### Deploy to Azure
 1. Run `/deploy-prototype` in the project directory

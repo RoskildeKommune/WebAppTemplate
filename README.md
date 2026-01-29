@@ -71,7 +71,8 @@ WebAppTemplate/
 │       └── azure-webapp-node.yml
 ├── .claude/
 │   └── skills/
-│       └── deploy-prototype.md
+│       └── deploy-prototype/
+│           └── SKILL.md
 ├── scripts/                # Deployment automation
 │   ├── deploy.ps1
 │   └── deploy.sh

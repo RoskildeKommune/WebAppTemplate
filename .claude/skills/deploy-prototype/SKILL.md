@@ -38,7 +38,7 @@ Before deploying, verify this is a project created with `/create-new-web-app` (n
 # Check required files exist
 ls infrastructure/templates/webapp.bicep
 ls scripts/deploy.ps1  # or deploy.sh on Linux/macOS
-ls .claude/skills/deploy-prototype.md
+ls .claude/skills/deploy-prototype/SKILL.md
 ```
 
 If any files are missing, this may not be a valid project. The deployment files should have been included during project creation from the WebAppTemplate.
