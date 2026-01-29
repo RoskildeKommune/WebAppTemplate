@@ -44,6 +44,22 @@ param(
     [switch]$SkipWorkflow
 )
 
+# Helper functions
+function Write-Step {
+    param([string]$Message)
+    Write-Host "`n>> $Message" -ForegroundColor Cyan
+}
+
+function Write-Success {
+    param([string]$Message)
+    Write-Host "[OK] $Message" -ForegroundColor Green
+}
+
+function Write-Failure {
+    param([string]$Message)
+    Write-Host "[ERROR] $Message" -ForegroundColor Red
+}
+
 # Configuration
 $GitHubOrg = "RoskildeKommune"
 $ResourceGroup = "internal_web_applications"
@@ -57,31 +73,32 @@ if (-not (Test-Path $TemplateFile)) {
     $TemplateFile = "infrastructure\templates\webapp.bicep"
 }
 if (-not (Test-Path $TemplateFile)) {
-    Write-Error "Cannot find webapp.bicep. Run this script from the project root or the scripts/ directory."
+    Write-Failure "Cannot find webapp.bicep. Run this script from the project root or the scripts/ directory."
     exit 1
 }
 
-# Runtime mapping
+# Runtime mapping (includes startup command for Python/FastAPI apps)
 $RuntimeMap = @{
-    "python311" = @{ version = "PYTHON|3.11"; workflow = "azure-webapp-python.yml" }
-    "python312" = @{ version = "PYTHON|3.12"; workflow = "azure-webapp-python.yml" }
-    "node18"    = @{ version = "NODE|18-lts"; workflow = "azure-webapp-node.yml" }
-    "node20"    = @{ version = "NODE|20-lts"; workflow = "azure-webapp-node.yml" }
-}
-
-function Write-Step {
-    param([string]$Message)
-    Write-Host "`n>> $Message" -ForegroundColor Cyan
-}
-
-function Write-Success {
-    param([string]$Message)
-    Write-Host "[OK] $Message" -ForegroundColor Green
-}
-
-function Write-Error {
-    param([string]$Message)
-    Write-Host "[ERROR] $Message" -ForegroundColor Red
+    "python311" = @{
+        version = "PYTHON|3.11"
+        workflow = "azure-webapp-python.yml"
+        startupCommand = "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000"
+    }
+    "python312" = @{
+        version = "PYTHON|3.12"
+        workflow = "azure-webapp-python.yml"
+        startupCommand = "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000"
+    }
+    "node18"    = @{
+        version = "NODE|18-lts"
+        workflow = "azure-webapp-node.yml"
+        startupCommand = ""
+    }
+    "node20"    = @{
+        version = "NODE|20-lts"
+        workflow = "azure-webapp-node.yml"
+        startupCommand = ""
+    }
 }
 
 # Check prerequisites
@@ -92,7 +109,7 @@ try {
     $azVersion = az --version 2>&1 | Select-Object -First 1
     Write-Success "Azure CLI installed: $azVersion"
 } catch {
-    Write-Error "Azure CLI not found. Install from: https://aka.ms/installazurecliwindows"
+    Write-Failure "Azure CLI not found. Install from: https://aka.ms/installazurecliwindows"
     exit 1
 }
 
@@ -110,7 +127,7 @@ try {
     $ghVersion = gh --version 2>&1 | Select-Object -First 1
     Write-Success "GitHub CLI installed: $ghVersion"
 } catch {
-    Write-Error "GitHub CLI not found. Install from: https://cli.github.com/"
+    Write-Failure "GitHub CLI not found. Install from: https://cli.github.com/"
     exit 1
 }
 
@@ -128,19 +145,23 @@ if (-not $SkipInfrastructure) {
     Write-Step "Deploying Azure infrastructure..."
 
     $runtimeVersion = $RuntimeMap[$Runtime].version
+    $startupCommand = $RuntimeMap[$Runtime].startupCommand
 
-    $deployResult = az deployment group create `
-        --resource-group $ResourceGroup `
-        --template-file $TemplateFile `
-        --parameters appName=$AppName linuxFxVersion=$runtimeVersion `
-        --query "properties.outputs" -o json 2>&1
+    # Use cmd /c to avoid PowerShell interpreting the pipe character in PYTHON|3.11
+    # Also pass startup command for FastAPI apps to avoid Oryx auto-detection issues
+    $azCommand = "az deployment group create --resource-group `"$ResourceGroup`" --template-file `"$TemplateFile`" --parameters appName=`"$AppName`" linuxFxVersion=`"$runtimeVersion`" startupCommand=`"$startupCommand`" --query `"properties.outputs`" -o json"
+
+    $deployResult = cmd /c $azCommand 2>&1
 
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to deploy infrastructure: $deployResult"
+        Write-Failure "Failed to deploy infrastructure: $deployResult"
         exit 1
     }
 
     Write-Success "Azure Web App '$AppName' created successfully"
+    if ($startupCommand) {
+        Write-Host "  Startup command configured: $startupCommand" -ForegroundColor Gray
+    }
 }
 
 # Get publish profile and set GitHub secret
@@ -152,19 +173,20 @@ $publishProfile = az webapp deployment list-publishing-profiles `
     --xml 2>&1
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Failed to get publish profile: $publishProfile"
+    Write-Failure "Failed to get publish profile: $publishProfile"
     exit 1
 }
 
-# Save to temp file and set secret
+# Save to temp file WITHOUT UTF-8 BOM (BOM can cause parsing issues)
 $tempFile = [System.IO.Path]::GetTempFileName()
-$publishProfile | Out-File -FilePath $tempFile -Encoding utf8
+$utf8NoBOM = New-Object System.Text.UTF8Encoding($False)
+[System.IO.File]::WriteAllText($tempFile, ($publishProfile -join "`n"), $utf8NoBOM)
 
 try {
     gh secret set AZURE_WEBAPP_PUBLISH_PROFILE --repo "$GitHubOrg/$RepoName" --body (Get-Content $tempFile -Raw)
     Write-Success "GitHub secret configured"
 } catch {
-    Write-Error "Failed to set GitHub secret. Ensure you have admin access to the repo."
+    Write-Failure "Failed to set GitHub secret. Ensure you have admin access to the repo."
     exit 1
 } finally {
     Remove-Item $tempFile -Force
@@ -173,6 +195,17 @@ try {
 # Set up workflow
 if (-not $SkipWorkflow) {
     Write-Step "Setting up GitHub Actions workflow..."
+
+    # Detect the default branch from GitHub (more reliable than current branch)
+    $defaultBranch = gh repo view "$GitHubOrg/$RepoName" --json defaultBranchRef --jq '.defaultBranchRef.name' 2>$null
+    if (-not $defaultBranch) {
+        # Fallback to current branch if gh fails
+        $defaultBranch = git rev-parse --abbrev-ref HEAD 2>$null
+    }
+    if (-not $defaultBranch) {
+        $defaultBranch = "main"
+    }
+    Write-Host "  Using branch: $defaultBranch" -ForegroundColor Gray
 
     $workflowDir = ".github\workflows"
     $workflowFile = $RuntimeMap[$Runtime].workflow
@@ -184,7 +217,11 @@ if (-not $SkipWorkflow) {
 
     $workflowContent = Get-Content $sourceWorkflow -Raw
     $workflowContent = $workflowContent -replace '\{\{APP_NAME\}\}', $AppName
-    $workflowContent | Out-File -FilePath "$workflowDir\azure-deploy.yml" -Encoding utf8
+    $workflowContent = $workflowContent -replace '\{\{DEFAULT_BRANCH\}\}', $defaultBranch
+
+    # Write without BOM to avoid issues
+    $utf8NoBOM = New-Object System.Text.UTF8Encoding($False)
+    [System.IO.File]::WriteAllText("$workflowDir\azure-deploy.yml", $workflowContent, $utf8NoBOM)
 
     Write-Success "Workflow file created at $workflowDir\azure-deploy.yml"
     Write-Host "Remember to commit and push the workflow file!" -ForegroundColor Yellow

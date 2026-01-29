@@ -31,7 +31,55 @@ Use `/deploy-prototype` to provision infrastructure and enable CI/CD.
 - **TLS**: 1.2+ required
 - **FTP**: Disabled
 
+## FastAPI Requirements for Azure
+
+FastAPI apps require special configuration for Azure App Service:
+
+1. **Gunicorn is required**: Add `gunicorn>=21.0.0` to `requirements.txt`
+2. **ASGI worker**: FastAPI is an ASGI app and must use `uvicorn.workers.UvicornWorker`
+3. **Startup command**: The deploy script automatically configures:
+   ```
+   gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000
+   ```
+
+**Why this is needed**: Azure's Oryx build system auto-detects frameworks but looks for specific patterns (`application.py`, `app.py`). Our `main.py` with `app = FastAPI()` isn't detected, so without a startup command, Azure uses a placeholder welcome app.
+
+**Common error if misconfigured**:
+```
+TypeError: FastAPI.__call__() missing 1 required positional argument: 'send'
+```
+This means gunicorn is running with a sync worker instead of the ASGI-compatible UvicornWorker.
+
 ## Troubleshooting
+
+### Azure CLI on Windows
+
+**Use PowerShell for Azure CLI commands.** When using bash (Git Bash) on Windows, `az` command output may not be captured correctly.
+
+```powershell
+# PowerShell (recommended on Windows)
+az webapp config show --name APP_NAME --resource-group internal_web_applications --query 'appCommandLine' -o tsv
+
+# If you must use bash, wrap in powershell.exe
+powershell.exe -Command "az webapp config show --name APP_NAME --resource-group internal_web_applications --query 'appCommandLine' -o tsv"
+```
+
+### Oryx Auto-Detection Failure (Azure Welcome Page Shows)
+
+**Symptom**: After deployment, you see the Azure Python welcome page instead of your app.
+
+**Cause**: Oryx didn't detect your framework and defaulted to `gunicorn application:app`
+
+**Diagnosis** (check logs for this message):
+```
+No framework detected; using default app from /opt/defaultsite
+```
+
+**Fix**: Set the startup command explicitly:
+```powershell
+az webapp config set --name APP_NAME --resource-group internal_web_applications `
+  --startup-file "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000"
+```
 
 ### Exit Code 127 - "Command not found"
 - **Cause**: Shell script has Windows line endings (CRLF)
@@ -40,12 +88,7 @@ Use `/deploy-prototype` to provision infrastructure and enable CI/CD.
 
 ### Exit Code 1 - Container crashes
 - **Cause**: Application error during startup
-- **Debug**:
-  ```bash
-  az webapp log download --name APP_NAME --resource-group internal_web_applications --log-file ./logs.zip
-  unzip logs.zip -d ./logs
-  cat ./logs/LogFiles/*docker*.log | tail -100
-  ```
+- **Debug**: See "How to Analyze Azure Logs" below
 
 ### 503 Service Unavailable
 - **Cause**: Container not started or wrong port
@@ -63,6 +106,61 @@ Use `/deploy-prototype` to provision infrastructure and enable CI/CD.
 ### "GitHub secret set failed"
 - **Cause**: Missing repo admin access
 - **Fix**: `gh auth refresh -s admin:repo_hook`
+
+## How to Analyze Azure Logs
+
+When troubleshooting deployment issues, download and analyze the logs:
+
+### Download Logs (PowerShell - recommended on Windows)
+
+```powershell
+$APP_NAME = "your-app-name"
+$RG = "internal_web_applications"
+
+# Download logs
+az webapp log download --name $APP_NAME --resource-group $RG --log-file C:\temp\webapp-logs.zip
+
+# Extract
+Expand-Archive -Path C:\temp\webapp-logs.zip -DestinationPath C:\temp\webapp-logs -Force
+```
+
+### Key Log Files
+
+| File | Contains |
+|------|----------|
+| `LogFiles/*_default_docker.log` | Application stdout/stderr, Oryx build output |
+| `LogFiles/*_docker.log` | Container lifecycle events |
+| `deployments/*/log.log` | Deployment logs |
+
+### Key Patterns to Search For
+
+1. **Framework detection failure**:
+   ```
+   No framework detected; using default app from /opt/defaultsite
+   ```
+   → Fix: Set startup command (see FastAPI Requirements above)
+
+2. **Startup command being used**:
+   ```
+   Site's appCommandLine: gunicorn -k uvicorn.workers.UvicornWorker main:app
+   ```
+
+3. **Oryx extraction**:
+   ```
+   Extracting '/home/site/wwwroot/output.tar.gz' to directory '/tmp/...'
+   ```
+
+4. **Successful startup**:
+   ```
+   [INFO] Starting gunicorn
+   [INFO] Listening at: http://0.0.0.0:8000
+   ```
+
+5. **Python errors**:
+   ```
+   [ERROR] Error handling request
+   Traceback (most recent call last):
+   ```
 
 ## Useful Commands
 

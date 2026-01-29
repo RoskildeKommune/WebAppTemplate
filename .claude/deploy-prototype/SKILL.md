@@ -222,3 +222,5 @@ For detailed troubleshooting, see `docs/DEPLOYMENT.md`.
 - **Port 8000 is required** - Azure App Service routes traffic to this port
 - **Shell scripts must have LF line endings** - Windows CRLF will cause startup failures
 - Cold starts may take 1-2 minutes on the free tier (alwaysOn is disabled)
+- **Windows users**: Use PowerShell (not bash) for Azure CLI commands - output capture is more reliable
+- **FastAPI apps**: The deploy script automatically configures the startup command for gunicorn with UvicornWorker

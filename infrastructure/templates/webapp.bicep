@@ -26,7 +26,7 @@ param appServicePlanName string = 'ASP-internal-web-applications'
 @description('Enable Always On for the web app')
 param alwaysOn bool = false
 
-@description('Startup command for the application (optional)')
+@description('Startup command for the application. For FastAPI apps, use: gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000')
 param startupCommand string = ''
 
 @description('Application settings as key-value pairs')
