@@ -1,11 +1,21 @@
+---
+name: deploy-prototype
+description: Deploy an internal prototype application to Azure App Service with GitHub Actions CI/CD
+allowed_tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - AskUserQuestion
+---
+
 # Deploy Prototype Application
 
 Deploy an internal prototype application to Azure App Service with GitHub Actions CI/CD.
 
-## Skill Metadata
-- **Trigger**: `/deploy-prototype` or when user asks to deploy a prototype app to Azure
-- **Scope**: Repository-level deployment
-- **Prerequisites**: Azure CLI, GitHub CLI
+**Prerequisites**: Azure CLI, GitHub CLI
 
 ## Configuration
 - **GitHub Organization**: RoskildeKommune
