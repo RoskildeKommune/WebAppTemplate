@@ -41,6 +41,10 @@ FastAPI apps require special configuration for Azure App Service:
    ```
    gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000
    ```
+4. **Custom entry point**: If your FastAPI instance is not `main:app`, use the `-EntryPoint` parameter:
+   ```powershell
+   .\deploy.ps1 -AppName "my-api" -Runtime "python311" -EntryPoint "app:application"
+   ```
 
 **Why this is needed**: Azure's Oryx build system auto-detects frameworks but looks for specific patterns (`application.py`, `app.py`). Our `main.py` with `app = FastAPI()` isn't detected, so without a startup command, Azure uses a placeholder welcome app.
 

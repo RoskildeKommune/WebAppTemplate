@@ -21,11 +21,19 @@
 .PARAMETER SkipWorkflow
     Skip GitHub Actions workflow setup.
 
+.PARAMETER EntryPoint
+    The Python entry point (module:variable) for the startup command.
+    Default is "main:app" for standard FastAPI apps.
+    Use "app:app" if your FastAPI instance is in app.py, or "app:application" if named differently.
+
 .EXAMPLE
     .\deploy.ps1 -AppName "my-prototype-app" -Runtime "python311"
 
 .EXAMPLE
     .\deploy.ps1 -AppName "my-node-app" -Runtime "node20" -SkipInfrastructure
+
+.EXAMPLE
+    .\deploy.ps1 -AppName "my-api" -Runtime "python311" -EntryPoint "app:application"
 #>
 
 param(
@@ -41,7 +49,9 @@ param(
 
     [switch]$SkipInfrastructure,
 
-    [switch]$SkipWorkflow
+    [switch]$SkipWorkflow,
+
+    [string]$EntryPoint = "main:app"
 )
 
 # Helper functions
@@ -82,12 +92,12 @@ $RuntimeMap = @{
     "python311" = @{
         version = "PYTHON|3.11"
         workflow = "azure-webapp-python.yml"
-        startupCommand = "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000"
+        startupCommand = "gunicorn -k uvicorn.workers.UvicornWorker $EntryPoint --bind 0.0.0.0:8000"
     }
     "python312" = @{
         version = "PYTHON|3.12"
         workflow = "azure-webapp-python.yml"
-        startupCommand = "gunicorn -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000"
+        startupCommand = "gunicorn -k uvicorn.workers.UvicornWorker $EntryPoint --bind 0.0.0.0:8000"
     }
     "node18"    = @{
         version = "NODE|18-lts"
@@ -151,6 +161,8 @@ if (-not $SkipInfrastructure) {
     # Also pass startup command for FastAPI apps to avoid Oryx auto-detection issues
     $azCommand = "az deployment group create --resource-group `"$ResourceGroup`" --template-file `"$TemplateFile`" --parameters appName=`"$AppName`" linuxFxVersion=`"$runtimeVersion`" startupCommand=`"$startupCommand`" --query `"properties.outputs`" -o json"
 
+    # cmd /c passes through the exit code of the last command it runs (az CLI),
+    # so $LASTEXITCODE correctly reflects the az CLI result
     $deployResult = cmd /c $azCommand 2>&1
 
     if ($LASTEXITCODE -ne 0) {
