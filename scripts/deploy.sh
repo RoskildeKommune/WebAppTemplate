@@ -40,6 +40,7 @@ fi
 # Runtime mapping
 get_runtime_version() {
     case $1 in
+        fullstack) echo "PYTHON|3.11" ;;
         python311) echo "PYTHON|3.11" ;;
         python312) echo "PYTHON|3.12" ;;
         node18)    echo "NODE|18-lts" ;;
@@ -50,6 +51,7 @@ get_runtime_version() {
 
 get_workflow_template() {
     case $1 in
+        fullstack)           echo "azure-webapp-fullstack.yml" ;;
         python311|python312) echo "azure-webapp-python.yml" ;;
         node18|node20)       echo "azure-webapp-node.yml" ;;
         *)                   echo "" ;;
@@ -131,7 +133,7 @@ fi
 # Validate runtime
 RUNTIME_VERSION=$(get_runtime_version "$RUNTIME")
 if [[ -z "$RUNTIME_VERSION" ]]; then
-    print_error "Invalid runtime. Choose: python311, python312, node18, node20"
+    print_error "Invalid runtime. Choose: fullstack, python311, python312, node18, node20"
     exit 1
 fi
 

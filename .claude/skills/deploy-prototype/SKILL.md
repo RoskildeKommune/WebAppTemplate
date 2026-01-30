@@ -43,16 +43,47 @@ ls .claude/skills/deploy-prototype/SKILL.md
 
 If any files are missing, this may not be a valid project. The deployment files should have been included during project creation from the WebAppTemplate.
 
-### Step 2: Gather Information
+### Step 2: Detect Runtime and Gather Information
+
+**2a. Auto-detect Project Type**
+
+```bash
+# Check for full-stack template structure
+ls backend/requirements.txt frontend/package.json 2>/dev/null
+
+# Check for Python-only
+ls requirements.txt pyproject.toml 2>/dev/null
+
+# Check for Node.js-only (package.json at root, no backend/)
+ls package.json 2>/dev/null
+```
+
+**Detection Results:**
+- **Full-stack** (backend/requirements.txt + frontend/package.json): Use `fullstack` runtime
+- **Python-only** (requirements.txt or pyproject.toml at root): Use `python311`
+- **Node.js-only** (package.json at root, no backend/): Use `node20`
+- **Unknown**: Ask user to specify
+
+**Version Detection (optional):**
+- Python: Check `.python-version` file for specific version
+- Node.js: Check `package.json` engines field or `.nvmrc`
+
+**2b. Gather Information**
 
 Ask the user for:
 1. **App Name**: The name for the Azure Web App (must be globally unique, lowercase, alphanumeric with hyphens)
-2. **Runtime**: What type of application is this?
-   - Python 3.11 (`python311`)
-   - Python 3.12 (`python312`)
-   - Node.js 18 (`node18`)
-   - Node.js 20 (`node20`)
-3. **Repository**: Does a GitHub repo already exist, or should one be created?
+2. **Repository**: Does a GitHub repo already exist, or should one be created?
+
+**Inform user of detected runtime:**
+> "Detected **full-stack project** (Python backend + React frontend). Will build frontend and serve from backend."
+
+or
+
+> "Detected **Python project**. Will deploy using Python 3.11 runtime."
+
+or
+
+> "Detected **Node.js project**. Will deploy using Node.js 20 runtime."
 
 ### Step 3: Check Prerequisites
 
@@ -139,12 +170,20 @@ chmod +x scripts/deploy.sh
 ```
 
 **Runtime options:**
-| App type | Runtime value |
-|----------|--------------|
-| Python 3.11 | `python311` |
-| Python 3.12 | `python312` |
-| Node.js 18 | `node18` |
-| Node.js 20 | `node20` |
+| App type | Runtime value | Description |
+|----------|--------------|-------------|
+| Full-stack | `fullstack` | Python backend + React frontend (auto-detected) |
+| Python 3.11 | `python311` | Python-only application |
+| Python 3.12 | `python312` | Python-only application |
+| Node.js 18 | `node18` | Node.js-only application |
+| Node.js 20 | `node20` | Node.js-only application |
+
+**Full-stack deployment:**
+When `fullstack` runtime is detected/used:
+1. Frontend is built with `npm ci && npm run build`
+2. Build output is copied to `backend/static/`
+3. Backend serves frontend at `/` and API at `/api/*`
+4. SPA routing works (all non-API routes serve `index.html`)
 
 **IMPORTANT: Azure App Service expects applications to listen on port 8000**
 

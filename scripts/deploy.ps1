@@ -42,7 +42,7 @@ param(
     [string]$AppName,
 
     [Parameter(Mandatory=$true)]
-    [ValidateSet("python311", "python312", "node18", "node20")]
+    [ValidateSet("fullstack", "python311", "python312", "node18", "node20")]
     [string]$Runtime,
 
     [string]$RepoName = $AppName,
@@ -89,6 +89,11 @@ if (-not (Test-Path $TemplateFile)) {
 
 # Runtime mapping (includes startup command for Python/FastAPI apps)
 $RuntimeMap = @{
+    "fullstack" = @{
+        version = "PYTHON|3.11"
+        workflow = "azure-webapp-fullstack.yml"
+        startupCommand = "gunicorn -k uvicorn.workers.UvicornWorker $EntryPoint --bind 0.0.0.0:8000"
+    }
     "python311" = @{
         version = "PYTHON|3.11"
         workflow = "azure-webapp-python.yml"

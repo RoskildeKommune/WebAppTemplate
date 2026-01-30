@@ -1,0 +1,123 @@
+# Azure Web App Deployment Workflow for Full-Stack Applications
+# This workflow builds a React frontend and Python backend, then deploys to Azure App Service
+#
+# Required secrets:
+#   AZURE_WEBAPP_PUBLISH_PROFILE - The publish profile from Azure Portal
+#
+# Usage:
+#   1. Copy this file to your repo's .github/workflows/ directory
+#   2. Update the APP_NAME environment variable
+#   3. Add the AZURE_WEBAPP_PUBLISH_PROFILE secret to your repo
+
+name: Build and Deploy Full-Stack to Azure
+
+on:
+  push:
+    branches:
+      - {{DEFAULT_BRANCH}}
+  workflow_dispatch:
+
+env:
+  APP_NAME: '{{APP_NAME}}'  # Replace with your Azure Web App name
+  RESOURCE_GROUP: 'internal_web_applications'
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Build frontend
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Copy frontend build to backend
+        run: |
+          mkdir -p backend/static
+          cp -r frontend/dist/* backend/static/
+
+      # Build backend
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Create virtual environment and install dependencies
+        run: |
+          cd backend
+          python -m venv antenv
+          source antenv/bin/activate
+          pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+
+      - name: Upload artifact for deployment
+        uses: actions/upload-artifact@v4
+        with:
+          name: fullstack-app
+          path: |
+            backend/
+            !backend/antenv/
+            !backend/.venv/
+            !backend/__pycache__/
+            !backend/*.pyc
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: 'Production'
+      url: ${{ steps.deploy.outputs.webapp-url }}
+
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: fullstack-app
+
+      - name: Deploy to Azure Web App
+        id: deploy
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.APP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+
+      - name: Verify deployment health
+        run: |
+          echo "Waiting for application to start..."
+          sleep 30
+
+          # Try health endpoint first, fall back to root
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 --retry 5 --retry-delay 10 --retry-max-time 120 "https://${{ env.APP_NAME }}.azurewebsites.net/api/health" || echo "000")
+
+          if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" = "404" ]; then
+            echo "API health endpoint not found, checking root..."
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 --retry 3 --retry-delay 10 "https://${{ env.APP_NAME }}.azurewebsites.net/")
+          fi
+
+          echo "HTTP response code: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
+            echo "Deployment verified successfully!"
+          else
+            echo "Warning: Application may not be responding correctly (HTTP $HTTP_CODE)"
+            echo "Check logs: az webapp log tail --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }}"
+            exit 1
+          fi
