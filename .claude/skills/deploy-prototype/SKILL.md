@@ -203,21 +203,129 @@ git push origin main
 
 ### Step 8: Verify Deployment
 
+#### 8a. Wait for GitHub Actions Workflow
+
+Watch the workflow until it completes. This blocks until the workflow finishes and exits non-zero on failure:
+
 ```bash
-# Check the workflow run status
-gh run list --repo RoskildeKommune/{{APP_NAME}} --limit 1
-
-# Watch the workflow run (optional)
-gh run watch --repo RoskildeKommune/{{APP_NAME}}
-
-# Get the deployed URL
-az webapp show --name {{APP_NAME}} --resource-group internal_web_applications --query "defaultHostName" -o tsv
+gh run watch --repo RoskildeKommune/{{APP_NAME}} --exit-status
 ```
 
-**Wait for container to start** (can take 1-2 minutes on cold start):
+**If the workflow fails:**
 ```bash
-curl -s -o /dev/null -w "%{http_code}" https://{{APP_NAME}}.azurewebsites.net
+# View failed job logs
+gh run view --repo RoskildeKommune/{{APP_NAME}} --log-failed
 ```
+Stop deployment and help the user fix the workflow issue before proceeding.
+
+**If multiple workflows are running:**
+```bash
+# List recent runs to find the right one
+gh run list --repo RoskildeKommune/{{APP_NAME}} --limit 5
+
+# Watch a specific run by ID
+gh run watch --repo RoskildeKommune/{{APP_NAME}} <run-id> --exit-status
+```
+
+#### 8b. Validate Deployed Application
+
+After the workflow completes, verify the application is actually responding. The container may take 1-2 minutes to start on cold boot.
+
+**macOS/Linux (Bash):**
+```bash
+APP_URL="https://{{APP_NAME}}.azurewebsites.net"
+echo "Waiting for container to start..."
+sleep 30
+
+# Retry loop: try multiple endpoints with retries
+MAX_ATTEMPTS=12
+DELAY=10
+SUCCESS=false
+
+for endpoint in "/health" "/api/health" "/"; do
+  for ((i=1; i<=MAX_ATTEMPTS; i++)); do
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$APP_URL$endpoint" 2>/dev/null || echo "000")
+
+    if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
+      echo "SUCCESS: $endpoint returned HTTP $HTTP_CODE"
+      SUCCESS=true
+      break 2
+    fi
+
+    echo "Attempt $i/$MAX_ATTEMPTS: $endpoint returned HTTP $HTTP_CODE, retrying in ${DELAY}s..."
+    sleep $DELAY
+  done
+done
+
+if [ "$SUCCESS" = false ]; then
+  echo "FAILED: Application not responding after $((MAX_ATTEMPTS * DELAY)) seconds"
+  exit 1
+fi
+```
+
+**Windows (PowerShell):**
+```powershell
+$AppUrl = "https://{{APP_NAME}}.azurewebsites.net"
+Write-Host "Waiting for container to start..."
+Start-Sleep -Seconds 30
+
+$MaxAttempts = 12
+$Delay = 10
+$Success = $false
+$Endpoints = @("/health", "/api/health", "/")
+
+foreach ($endpoint in $Endpoints) {
+    for ($i = 1; $i -le $MaxAttempts; $i++) {
+        try {
+            $response = Invoke-WebRequest -Uri "$AppUrl$endpoint" -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
+            $httpCode = $response.StatusCode
+        } catch {
+            $httpCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
+        }
+
+        if ($httpCode -ge 200 -and $httpCode -lt 400) {
+            Write-Host "SUCCESS: $endpoint returned HTTP $httpCode"
+            $Success = $true
+            break
+        }
+
+        Write-Host "Attempt $i/$MaxAttempts`: $endpoint returned HTTP $httpCode, retrying in ${Delay}s..."
+        Start-Sleep -Seconds $Delay
+    }
+    if ($Success) { break }
+}
+
+if (-not $Success) {
+    Write-Host "FAILED: Application not responding after $($MaxAttempts * $Delay) seconds"
+    exit 1
+}
+```
+
+#### 8c. Troubleshooting on Failure
+
+If the application fails to respond after retries, provide these troubleshooting steps:
+
+**1. View live logs:**
+```bash
+az webapp log tail --name {{APP_NAME}} --resource-group internal_web_applications
+```
+
+**2. Check application configuration:**
+```bash
+az webapp config show --name {{APP_NAME}} --resource-group internal_web_applications --query "{startupCommand:appCommandLine, linuxFx:linuxFxVersion}" -o table
+```
+
+**3. Restart the application:**
+```bash
+az webapp restart --name {{APP_NAME}} --resource-group internal_web_applications
+```
+
+**4. Common issues to check:**
+- **Port 8000**: Azure App Service expects the app to listen on port 8000
+- **CRLF line endings**: Shell scripts (startup.sh) must use LF, not CRLF
+- **Missing dependencies**: Check if all packages are in requirements.txt or package.json
+- **Startup command**: For Python apps, verify gunicorn is configured correctly
+- **Cold start timeout**: Free tier apps may take up to 2 minutes on first request
 
 ### Step 9: Report Success
 

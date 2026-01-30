@@ -19,6 +19,7 @@ on:
 
 env:
   APP_NAME: '{{APP_NAME}}'  # Replace with your Azure Web App name
+  RESOURCE_GROUP: 'internal_web_applications'
   NODE_VERSION: '20.x'
 
 jobs:
@@ -72,3 +73,26 @@ jobs:
           app-name: ${{ env.APP_NAME }}
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+
+      - name: Verify deployment health
+        run: |
+          echo "Waiting for application to start..."
+          sleep 30
+
+          # Try health endpoint first, fall back to root
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 --retry 5 --retry-delay 10 --retry-max-time 120 "https://${{ env.APP_NAME }}.azurewebsites.net/health" || echo "000")
+
+          if [ "$HTTP_CODE" = "000" ] || [ "$HTTP_CODE" = "404" ]; then
+            echo "Health endpoint not found, checking root..."
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 --retry 3 --retry-delay 10 "https://${{ env.APP_NAME }}.azurewebsites.net/")
+          fi
+
+          echo "HTTP response code: $HTTP_CODE"
+
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
+            echo "Deployment verified successfully!"
+          else
+            echo "Warning: Application may not be responding correctly (HTTP $HTTP_CODE)"
+            echo "Check logs: az webapp log tail --name ${{ env.APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }}"
+            exit 1
+          fi
