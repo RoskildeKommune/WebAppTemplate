@@ -214,13 +214,18 @@ if (-not $SkipWorkflow) {
     Write-Step "Setting up GitHub Actions workflow..."
 
     # Detect the default branch from GitHub (more reliable than current branch)
-    $defaultBranch = gh repo view "$GitHubOrg/$RepoName" --json defaultBranchRef --jq '.defaultBranchRef.name' 2>$null
-    if (-not $defaultBranch) {
+    # Note: Using 2>&1 instead of 2>$null to avoid creating a literal 'nul' file on Windows
+    $ghOutput = gh repo view "$GitHubOrg/$RepoName" --json defaultBranchRef --jq '.defaultBranchRef.name' 2>&1
+    if ($LASTEXITCODE -eq 0 -and $ghOutput) {
+        $defaultBranch = ($ghOutput | Out-String).Trim()
+    } else {
         # Fallback to current branch if gh fails
-        $defaultBranch = git rev-parse --abbrev-ref HEAD 2>$null
-    }
-    if (-not $defaultBranch) {
-        $defaultBranch = "main"
+        $gitOutput = git rev-parse --abbrev-ref HEAD 2>&1
+        if ($LASTEXITCODE -eq 0 -and $gitOutput) {
+            $defaultBranch = ($gitOutput | Out-String).Trim()
+        } else {
+            $defaultBranch = "main"
+        }
     }
     Write-Host "  Using branch: $defaultBranch" -ForegroundColor Gray
 
